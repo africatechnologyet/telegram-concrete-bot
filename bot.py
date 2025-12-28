@@ -228,16 +228,23 @@ def generate_pdf(pi_data):
     elements.append(Spacer(1, 3))
     
     try:
-        # Larger square signature: 2x2 inches
-        signature = Image('signature.png', width=4*inch, height=2*inch)
-        sig_table = Table([[signature]], colWidths=[2*inch])
+        # Signature with "Approved By:" text - maintaining aspect ratio from uploaded image
+        signature = Image('signature.png', width=3*inch, height=1.75*inch)
+        
+        approved_by_style = ParagraphStyle('ApprovedBy', parent=styles['Normal'], fontSize=8, alignment=TA_RIGHT)
+        approved_by_text = Paragraph("<b>Approved By:</b>", approved_by_style)
+        
+        # Create table with signature and text below it
+        sig_table = Table([[signature], [approved_by_text]], colWidths=[3*inch])
         sig_table.setStyle(TableStyle([
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
             ('ALIGN', (0, 0), (0, 0), 'RIGHT'),
+            ('ALIGN', (0, 1), (0, 1), 'RIGHT'),
             ('LEFTPADDING', (0, 0), (-1, -1), 0),
             ('RIGHTPADDING', (0, 0), (-1, -1), 0),
             ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
-            ('TOPPADDING', (0, 0), (-1, -1), 0),
+            ('TOPPADDING', (0, 0), (0, 0), 0),
+            ('TOPPADDING', (0, 1), (0, 1), 2),
         ]))
         sig_table.hAlign = 'RIGHT'
         elements.append(sig_table)
