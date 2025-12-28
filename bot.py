@@ -524,7 +524,7 @@ def main():
     print("Starting bot initialization...")
     try:
         # Bot token
-        application = Application.builder().token("8513160001:AAHJwvcdBREFIB1seORqFX0cjxV9mT2DRvw").build()
+        application = Application.builder().token("8513160001:AAELK8YtZxL34U2tWrNsXLOGooJEVSWqKWI").build()
         print("Application built successfully!")
 
         conv_handler = ConversationHandler(
