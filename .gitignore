@@ -1,0 +1,7 @@
+bot_data.json
+__pycache__/
+*.pyc
+*.pyo
+*.log
+logo.png
+signature.png
