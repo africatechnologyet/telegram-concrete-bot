@@ -511,7 +511,7 @@ async def extras(update: Update, context: CallbackContext):
         [InlineKeyboardButton("⬅️ Back", callback_data='confirm_back'), InlineKeyboardButton("❌ Cancel", callback_data='confirm_no')]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text(draft, reply_markup=reply_markup, parse_mode='Markdown', reply_markup_remove=ReplyKeyboardRemove())
+    await update.message.reply_text(draft, reply_markup=reply_markup, parse_mode='Markdown')
     return CONFIRM
 
 async def confirm(update: Update, context: CallbackContext):
