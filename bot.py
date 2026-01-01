@@ -23,7 +23,7 @@ from io import BytesIO
 (CUSTOMER, LOCATION_INPUT, GRADES, PRICE, QUANTITY, EXTRAS, CONFIRM) = range(7)
 
 # Concrete grades
-GRADES_LIST = ['C-15', 'C-20', 'C-25', 'C-30', 'C-35', 'C-40', 'C-45', 'C-50']
+GRADES_LIST = ['C-15', 'C-20', 'C-25', 'C-30', 'C-35', 'C-37', 'C-40', 'C-45', 'C-50']
 
 # Extra services
 EXTRAS_LIST = ['Elephant pump', 'Vibrator', 'Skip', 'None']
@@ -290,17 +290,34 @@ async def create_pi(update: Update, context: CallbackContext):
         'username': update.effective_user.username or update.effective_user.first_name,
         'created_at': datetime.now().isoformat()
     }
-    await update.message.reply_text("👤 Enter customer/company name:")
+    keyboard = [['❌ Cancel']]
+    reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
+    await update.message.reply_text("👤 Enter customer/company name:", reply_markup=reply_markup)
     return CUSTOMER
 
 async def customer_name(update: Update, context: CallbackContext):
+    if update.message.text == '❌ Cancel':
+        return await cancel(update, context)
+    
     context.user_data['pi_data']['customer'] = update.message.text
-    await update.message.reply_text("📍 Enter delivery location:")
+    keyboard = [['⬅️ Back', '❌ Cancel']]
+    reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
+    await update.message.reply_text("📍 Enter delivery location:", reply_markup=reply_markup)
     return LOCATION_INPUT
 
 async def location_input(update: Update, context: CallbackContext):
+    if update.message.text == '❌ Cancel':
+        return await cancel(update, context)
+    
+    if update.message.text == '⬅️ Back':
+        keyboard = [['❌ Cancel']]
+        reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
+        await update.message.reply_text("👤 Enter customer/company name:", reply_markup=reply_markup)
+        return CUSTOMER
+    
     context.user_data['pi_data']['location'] = update.message.text.strip()
     keyboard = [GRADES_LIST[i:i+4] for i in range(0, len(GRADES_LIST), 4)]
+    keyboard.append(['⬅️ Back', '❌ Cancel'])
     reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
     await update.message.reply_text(
         "🧱 Select concrete grades (comma separated):\n\n"
@@ -314,11 +331,21 @@ async def location_input(update: Update, context: CallbackContext):
 
 async def quantity_input(update: Update, context: CallbackContext):
     keyboard = [GRADES_LIST[i:i+4] for i in range(0, len(GRADES_LIST), 4)]
+    keyboard.append(['⬅️ Back', '❌ Cancel'])
     reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
     await update.message.reply_text("🧱 Select concrete grades (comma separated):", reply_markup=reply_markup)
     return GRADES
 
 async def grades(update: Update, context: CallbackContext):
+    if update.message.text == '❌ Cancel':
+        return await cancel(update, context)
+    
+    if update.message.text == '⬅️ Back':
+        keyboard = [['⬅️ Back', '❌ Cancel']]
+        reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
+        await update.message.reply_text("📍 Enter delivery location:", reply_markup=reply_markup)
+        return LOCATION_INPUT
+    
     grades_input = update.message.text.replace(' ', '')
     grades = [g.strip().upper() for g in grades_input.split(',') if g.strip()]
     
@@ -333,16 +360,22 @@ async def grades(update: Update, context: CallbackContext):
             invalid_grades.append(grade)
     
     if invalid_grades:
+        keyboard = [GRADES_LIST[i:i+4] for i in range(0, len(GRADES_LIST), 4)]
+        keyboard.append(['⬅️ Back', '❌ Cancel'])
+        reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
         await update.message.reply_text(
             f"❌ Invalid grades: {', '.join(invalid_grades)}\n\n"
             f"Please select from: {', '.join(GRADES_LIST)}\n"
             f"Enter grades again (comma separated):",
-            reply_markup=ReplyKeyboardRemove()
+            reply_markup=reply_markup
         )
         return GRADES
     
     if not valid_grades:
-        await update.message.reply_text("❌ Enter at least one grade.", reply_markup=ReplyKeyboardRemove())
+        keyboard = [GRADES_LIST[i:i+4] for i in range(0, len(GRADES_LIST), 4)]
+        keyboard.append(['⬅️ Back', '❌ Cancel'])
+        reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
+        await update.message.reply_text("❌ Enter at least one grade.", reply_markup=reply_markup)
         return GRADES
     
     context.user_data['pi_data']['grades'] = valid_grades
@@ -351,43 +384,105 @@ async def grades(update: Update, context: CallbackContext):
     context.user_data['current_grade_index'] = 0
 
     grade = valid_grades[0]
-    await update.message.reply_text(f"💵 Grade: {grade}\nEnter price per m³:", reply_markup=ReplyKeyboardRemove())
+    keyboard = [['⬅️ Back', '❌ Cancel']]
+    reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
+    await update.message.reply_text(f"💵 Grade: {grade}\nEnter price per m³:", reply_markup=reply_markup)
     return PRICE
 
 async def price(update: Update, context: CallbackContext):
+    if update.message.text == '❌ Cancel':
+        return await cancel(update, context)
+    
+    if update.message.text == '⬅️ Back':
+        # Go back to grades selection
+        if context.user_data['current_grade_index'] == 0:
+            keyboard = [GRADES_LIST[i:i+4] for i in range(0, len(GRADES_LIST), 4)]
+            keyboard.append(['⬅️ Back', '❌ Cancel'])
+            reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
+            await update.message.reply_text(
+                "🧱 Select concrete grades (comma separated):\n\n"
+                "Examples:\n"
+                "• Single grade: C-25\n"
+                "• Multiple grades: C-25, C-30, C-35\n\n"
+                "Available grades: " + ", ".join(GRADES_LIST),
+                reply_markup=reply_markup
+            )
+            return GRADES
+        else:
+            # Go back to previous grade's quantity
+            context.user_data['current_grade_index'] -= 1
+            grade = context.user_data['pi_data']['grades'][context.user_data['current_grade_index']]
+            keyboard = [['⬅️ Back', '❌ Cancel']]
+            reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
+            await update.message.reply_text(f"📏 Grade: {grade}\nEnter quantity in m³:", reply_markup=reply_markup)
+            return QUANTITY
+    
     grade = context.user_data['pi_data']['grades'][context.user_data['current_grade_index']]
     try:
         price_value = float(update.message.text.replace(',', ''))
         if price_value < 0: raise ValueError()
         context.user_data['pi_data']['unit_price'][grade] = price_value
     except ValueError:
-        await update.message.reply_text(f"❌ Enter valid price for {grade}:")
+        keyboard = [['⬅️ Back', '❌ Cancel']]
+        reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
+        await update.message.reply_text(f"❌ Enter valid price for {grade}:", reply_markup=reply_markup)
         return PRICE
-    await update.message.reply_text(f"📏 Grade: {grade}\nEnter quantity in m³:")
+    
+    keyboard = [['⬅️ Back', '❌ Cancel']]
+    reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
+    await update.message.reply_text(f"📏 Grade: {grade}\nEnter quantity in m³:", reply_markup=reply_markup)
     return QUANTITY
 
 async def quantity(update: Update, context: CallbackContext):
+    if update.message.text == '❌ Cancel':
+        return await cancel(update, context)
+    
+    if update.message.text == '⬅️ Back':
+        # Go back to price input for current grade
+        grade = context.user_data['pi_data']['grades'][context.user_data['current_grade_index']]
+        keyboard = [['⬅️ Back', '❌ Cancel']]
+        reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
+        await update.message.reply_text(f"💵 Grade: {grade}\nEnter price per m³:", reply_markup=reply_markup)
+        return PRICE
+    
     grade = context.user_data['pi_data']['grades'][context.user_data['current_grade_index']]
     try:
         quantity_value = float(update.message.text.replace(',', ''))
         if quantity_value < 0: raise ValueError()
         context.user_data['pi_data']['quantity'][grade] = quantity_value
     except ValueError:
-        await update.message.reply_text(f"❌ Enter valid quantity for {grade}:")
+        keyboard = [['⬅️ Back', '❌ Cancel']]
+        reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
+        await update.message.reply_text(f"❌ Enter valid quantity for {grade}:", reply_markup=reply_markup)
         return QUANTITY
 
     context.user_data['current_grade_index'] += 1
     if context.user_data['current_grade_index'] < len(context.user_data['pi_data']['grades']):
         next_grade = context.user_data['pi_data']['grades'][context.user_data['current_grade_index']]
-        await update.message.reply_text(f"💵 Grade: {next_grade}\nEnter price per m³:")
+        keyboard = [['⬅️ Back', '❌ Cancel']]
+        reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
+        await update.message.reply_text(f"💵 Grade: {next_grade}\nEnter price per m³:", reply_markup=reply_markup)
         return PRICE
     else:
         keyboard = [EXTRAS_LIST]
+        keyboard.append(['⬅️ Back', '❌ Cancel'])
         reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
         await update.message.reply_text("🧰 Select extra services (comma separated) or 'None':", reply_markup=reply_markup)
         return EXTRAS
 
 async def extras(update: Update, context: CallbackContext):
+    if update.message.text == '❌ Cancel':
+        return await cancel(update, context)
+    
+    if update.message.text == '⬅️ Back':
+        # Go back to last grade's quantity
+        context.user_data['current_grade_index'] = len(context.user_data['pi_data']['grades']) - 1
+        grade = context.user_data['pi_data']['grades'][context.user_data['current_grade_index']]
+        keyboard = [['⬅️ Back', '❌ Cancel']]
+        reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
+        await update.message.reply_text(f"📏 Grade: {grade}\nEnter quantity in m³:", reply_markup=reply_markup)
+        return QUANTITY
+    
     extras_text = update.message.text.strip()
     if extras_text.lower() == 'none':
         context.user_data['pi_data']['extras'] = 'None'
@@ -411,14 +506,25 @@ async def extras(update: Update, context: CallbackContext):
         f"🧰 Extras: {pi_data['extras']}"
     )
 
-    keyboard = [[InlineKeyboardButton("✅ Submit", callback_data='confirm_yes'), InlineKeyboardButton("❌ Cancel", callback_data='confirm_no')]]
+    keyboard = [
+        [InlineKeyboardButton("✅ Submit", callback_data='confirm_yes')],
+        [InlineKeyboardButton("⬅️ Back", callback_data='confirm_back'), InlineKeyboardButton("❌ Cancel", callback_data='confirm_no')]
+    ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text(draft, reply_markup=reply_markup, parse_mode='Markdown')
+    await update.message.reply_text(draft, reply_markup=reply_markup, parse_mode='Markdown', reply_markup_remove=ReplyKeyboardRemove())
     return CONFIRM
 
 async def confirm(update: Update, context: CallbackContext):
     query = update.callback_query
     await query.answer()
+
+    if query.data == 'confirm_back':
+        # Go back to extras selection
+        keyboard = [EXTRAS_LIST]
+        keyboard.append(['⬅️ Back', '❌ Cancel'])
+        reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
+        await query.message.reply_text("🧰 Select extra services (comma separated) or 'None':", reply_markup=reply_markup)
+        return EXTRAS
 
     if query.data == 'confirm_yes':
         global bot_data
@@ -490,7 +596,16 @@ async def handle_approval(update: Update, context: CallbackContext):
         await query.edit_message_text(f"{query.message.text}\n✅ APPROVED by @{pi_data['approved_by']}")
         pdf_buffer = generate_pdf(pi_data)
         try:
-            await context.bot.send_document(chat_id=pi_data['user_id'], document=pdf_buffer, filename=f"Quote_{quote_number}.pdf", caption=f"✅ Quote Approved\nQuote No: {quote_number}")
+            # Add "Start Over" button after PDF is sent
+            keyboard = [[InlineKeyboardButton("🔄 Create New Quote", callback_data='start_over')]]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            await context.bot.send_document(
+                chat_id=pi_data['user_id'], 
+                document=pdf_buffer, 
+                filename=f"Quote_{quote_number}.pdf", 
+                caption=f"✅ Quote Approved\nQuote No: {quote_number}\n\nClick below to create a new quote:",
+                reply_markup=reply_markup
+            )
         except Exception as e:
             print(f"Failed to send PDF to user: {e}")
     elif action == 'reject':
@@ -500,9 +615,32 @@ async def handle_approval(update: Update, context: CallbackContext):
         save_data(bot_data)
         await query.edit_message_text(f"{query.message.text}\n❌ REJECTED by @{pi_data['rejected_by']}")
         try:
-            await context.bot.send_message(chat_id=pi_data['user_id'], text=f"❌ Your quote {quote_number} was rejected.")
+            # Add "Start Over" button after rejection
+            keyboard = [[InlineKeyboardButton("🔄 Create New Quote", callback_data='start_over')]]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            await context.bot.send_message(
+                chat_id=pi_data['user_id'], 
+                text=f"❌ Your quote {quote_number} was rejected.\n\nClick below to create a new quote:",
+                reply_markup=reply_markup
+            )
         except Exception as e:
             print(f"Failed to notify user: {e}")
+
+async def handle_start_over(update: Update, context: CallbackContext):
+    """Handle the start over button click"""
+    query = update.callback_query
+    await query.answer()
+    
+    context.user_data.clear()
+    context.user_data['pi_data'] = {
+        'user_id': update.effective_user.id,
+        'username': update.effective_user.username or update.effective_user.first_name,
+        'created_at': datetime.now().isoformat()
+    }
+    keyboard = [['❌ Cancel']]
+    reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
+    await query.message.reply_text("👤 Enter customer/company name:", reply_markup=reply_markup)
+    return CUSTOMER
 
 async def myquotes(update: Update, context: CallbackContext):
     user_id = update.effective_user.id
@@ -524,7 +662,7 @@ async def myquotes(update: Update, context: CallbackContext):
         )
 
 async def cancel(update: Update, context: CallbackContext):
-    await update.message.reply_text("❌ Operation cancelled.", reply_markup=ReplyKeyboardRemove())
+    await update.message.reply_text("❌ Operation cancelled. Use /createpi to start again.", reply_markup=ReplyKeyboardRemove())
     return ConversationHandler.END
 
 def main():
@@ -535,7 +673,8 @@ def main():
         print("Application built successfully!")
 
         conv_handler = ConversationHandler(
-            entry_points=[CommandHandler('createpi', create_pi)],
+            entry_points=[CommandHandler('createpi', create_pi), CallbackQueryHandler(handle_start_over, pattern='^start_over
+    )],
             states={
                 CUSTOMER: [MessageHandler(filters.TEXT & ~filters.COMMAND, customer_name)],
                 LOCATION_INPUT: [MessageHandler(filters.TEXT & ~filters.COMMAND, location_input)],
